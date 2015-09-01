@@ -1,8 +1,9 @@
 #!/bin/sh
 
+# Members - Sets up the cluster master and initial nodes
+
 # --------------------------------------
-# Members
-# --------------------------------------
+# Vars
 
 master_size="t2.micro"
 node_size="m3.medium"

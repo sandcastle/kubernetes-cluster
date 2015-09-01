@@ -43,9 +43,15 @@ aws configure
 ## Further Reading
 Some articles that helped with this project:
 
-- [Kubernetes Cluster on CoreOS - release 1](https://github.com/kubernetes/kubernetes/blob/release-1.0/docs/getting-started-guides/coreos/coreos_multinode_cluster.md)
+- [Kubernetes Cluster on CoreOS - v1.0](https://github.com/kubernetes/kubernetes/blob/release-1.0/docs/getting-started-guides/coreos/coreos_multinode_cluster.md)
+- [CoreOS on AWS](https://coreos.com/os/docs/latest/booting-on-ec2.html)
 - [VPC reference architecture](http://blog.bwhaley.com/reference-vpc-architecture)
 - [Zero downtime deployments](http://waytothepiratecove.blogspot.com.au/2015/03/delivery-pipeline-and-zero-downtime.html)
+
+Some articles yet to be read that may provide value:
+
+- [http://marceldegraaf.net/2014/05/05/coreos-follow-up-sinatra-logstash-elasticsearch-kibana.html]()
+- [http://blog.michaelhamrah.com/2015/03/managing-coreos-clusters-on-aws-with-cloudformation/]()
 
 Some example scripts that helped with this project:
 

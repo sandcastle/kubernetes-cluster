@@ -1,10 +1,6 @@
 #!/bin/sh
 
-# --------------------------------------
-# Utils
-# --------------------------------------
-
-# Provides helper functions
+# Utils - Provides helper functions
 
 # --------------------------------------
 # General

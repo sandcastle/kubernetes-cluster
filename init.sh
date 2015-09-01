@@ -1,8 +1,6 @@
 #!/bin/sh
 
-# --------------------------------------
-# Init
-# --------------------------------------
+# Init - Runs the bootstrap process
 
 echo "------------------------"
 echo "~ Initializing Cluster ~"

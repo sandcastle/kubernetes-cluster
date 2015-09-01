@@ -1,20 +1,10 @@
 #!/bin/sh
 
-# --------------------------------------
-# Networking
-# --------------------------------------
-
-# Setups up all require networking (VPC, subnets, routing, 
+# Network - Setups up all require networking (VPC, subnets, routing, 
 # security groups) to run the cluster.
 
 # --------------------------------------
 # Configuration
-
-# current region (ap-southeast-2)
-AWS_REGION=$(aws configure get region)
-
-# availability zones
-NET_ZONES=2
 
 # VPC
 VPC_CIDR="${NET_PREFIX}.0.0/16"
