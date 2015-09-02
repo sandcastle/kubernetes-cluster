@@ -4,14 +4,10 @@
 # security groups) to run the cluster.
 
 # --------------------------------------
-# Configuration
-
 # VPC
+
 VPC_CIDR="${NET_PREFIX}.0.0/16"
 VPC_ID=
-
-# --------------------------------------
-# VPC
 
 # Creates the VPC if it doesnt exist
 # usage: create_vpc
@@ -48,38 +44,33 @@ create_vpc
 # --------------------------------------
 # subnets
 
+# subnet placeholders
+SUBNET_ELB_A_ID=
+SUBNET_ELB_B_ID=
+SUBNET_CLUSTER_A_ID=
+SUBNET_CLUSTER_B_ID=
+SUBNET_DB_A_ID=
+SUBNET_DB_B_ID=
+
 # creates a subnet
-# usage: create_subnets <type> <start>
-create_subnets() {
+# usage: create_subnets <type> <subnet> <az> <result>
+create_subnet() {
 
-  local subnet
-  local subnet_id
-  local subnet_cidr
-  local az="a"
+  # create subnet
+  local subnet_name="subnet-${APP_NAME}-${1}-${3}"
+  local subnet=$(aws ec2 create-subnet --vpc-id ${VPC_ID} --cidr-block ${2} --availability-zone "${AWS_REGION}${3}" | jq -r '.Subnet')
+  local subnet_id=$(echo ${subnet} | jq -r '.SubnetId')
+  
+  # tag
+  add_tag ${subnet_id} Name "${subnet_name}"
+  add_tag ${subnet_id} Env "${APP_ENV}"
+  add_tag ${subnet_id} Service "${APP_SERVICE}"
 
-  # create subnet per zone
-  local i
-  for ((i=0; i < ${NET_ZONES}; i++)); do
+  # debug 
+  echo " - ${subnet_id} / ${subnet_name} (${2})"
 
-    # calculate cidr
-    subnet_cidr="${NET_PREFIX}.${2}${i}.0/24"
-
-    # create subnet
-    subnet=$(aws ec2 create-subnet --vpc-id ${VPC_ID} --cidr-block ${subnet_cidr} --availability-zone "${AWS_REGION}${az}" | jq -r '.Subnet')
-    subnet_id=$(echo ${subnet} | jq -r '.SubnetId')
-    
-    # tag
-    add_tag ${subnet_id} Name "subnet-${APP_NAME}-${1}-${az}"
-    add_tag ${subnet_id} Env "${APP_ENV}"
-    add_tag ${subnet_id} Service "${APP_SERVICE}"
-    add_tag ${subnet_id} Zone "${az}"
-
-    echo " - ${subnet_id} / subnet-${APP_NAME}-${1}-${az} (${subnet_cidr})"
-
-    # increment zone
-    az=$(increment_char ${az})
-
-  done
+  # return result
+  eval "$4=${subnet_id}"
 }
 
 # Creates all subnets for all zones
@@ -90,9 +81,12 @@ create_all_subnets() {
   echo "[Subnets]"
 
   # create subnets
-  create_subnets "elb" 1
-  create_subnets "cluster" 2
-  create_subnets "db" 3
+  create_subnet "elb" "${NET_PREFIX}.10.0/24" "${AWS_ZONE_1}" "SUBNET_ELB_A_ID"
+  create_subnet "elb" "${NET_PREFIX}.11.0/24" "${AWS_ZONE_2}" "SUBNET_ELB_B_ID"
+  create_subnet "cluster" "${NET_PREFIX}.20.0/24" "${AWS_ZONE_1}" "SUBNET_CLUSTER_A_ID"
+  create_subnet "cluster" "${NET_PREFIX}.21.0/24" "${AWS_ZONE_2}" "SUBNET_CLUSTER_B_ID"
+  create_subnet "db" "${NET_PREFIX}.30.0/24" "${AWS_ZONE_1}" "SUBNET_DB_A_ID"
+  create_subnet "db" "${NET_PREFIX}.31.0/24" "${AWS_ZONE_2}" "SUBNET_DB_B_ID"
 }
 
 # create VPC subnets
@@ -102,6 +96,11 @@ create_all_subnets
 # --------------------------------------
 # security group
 
+# placeholder groups
+GRP_ELB_ID=
+GRP_CLUSTER_ID=
+GRP_DB_ID=
+
 create_groups(){
 
   echo ""
@@ -109,44 +108,44 @@ create_groups(){
 
   # elb
   local grp_elb="grp-${APP_NAME}-elb"
-  local grp_elb_id=$(aws ec2 create-security-group --group-name "${grp_elb}" --description "${grp_elb} security group" --vpc-id ${VPC_ID} | jq -r ".GroupId")
-  aws ec2 authorize-security-group-ingress --group-id ${grp_elb_id} --protocol tcp --port 80 --cidr 0.0.0.0/0
-  aws ec2 authorize-security-group-ingress --group-id ${grp_elb_id} --protocol tcp --port 443 --cidr 0.0.0.0/0
+  GRP_ELB_ID=$(aws ec2 create-security-group --group-name "${grp_elb}" --description "${grp_elb} security group" --vpc-id ${VPC_ID} | jq -r ".GroupId")
+  aws ec2 authorize-security-group-ingress --group-id ${GRP_ELB_ID} --protocol tcp --port 80 --cidr 0.0.0.0/0
+  aws ec2 authorize-security-group-ingress --group-id ${GRP_ELB_ID} --protocol tcp --port 443 --cidr 0.0.0.0/0
 
   # elb tags
-  add_tag ${grp_elb_id} Name "${grp_elb}"
-  add_tag ${grp_elb_id} Env "${APP_ENV}"
-  add_tag ${grp_elb_id} Service "${APP_SERVICE}"
+  add_tag ${GRP_ELB_ID} Name "${grp_elb}"
+  add_tag ${GRP_ELB_ID} Env "${APP_ENV}"
+  add_tag ${GRP_ELB_ID} Service "${APP_SERVICE}"
 
-  echo " - ${grp_elb_id} / ${grp_elb}"
+  echo " - ${GRP_ELB_ID} / ${grp_elb}"
 
   # cluster
   local grp_cluster="grp-${APP_NAME}-cluster"
-  local grp_cluster_id=$(aws ec2 create-security-group --group-name "${grp_cluster}" --description "${grp_cluster} security group" --vpc-id ${VPC_ID} | jq -r ".GroupId")
-  aws ec2 authorize-security-group-ingress --group-id ${grp_cluster_id} --protocol tcp --port 22 --cidr ${MY_IP}/32
-  aws ec2 authorize-security-group-ingress --group-id ${grp_cluster_id} --protocol tcp --port 80 --source-group ${grp_elb_id}
-  aws ec2 authorize-security-group-ingress --group-id ${grp_cluster_id} --protocol tcp --port 443 --source-group ${grp_elb_id}
+  GRP_CLUSTER_ID=$(aws ec2 create-security-group --group-name "${grp_cluster}" --description "${grp_cluster} security group" --vpc-id ${VPC_ID} | jq -r ".GroupId")
+  aws ec2 authorize-security-group-ingress --group-id ${GRP_CLUSTER_ID} --protocol tcp --port 22 --cidr ${MY_IP}/32
+  aws ec2 authorize-security-group-ingress --group-id ${GRP_CLUSTER_ID} --protocol tcp --port 80 --source-group ${GRP_ELB_ID}
+  aws ec2 authorize-security-group-ingress --group-id ${GRP_CLUSTER_ID} --protocol tcp --port 443 --source-group ${GRP_ELB_ID}
 
   # cluster tags
-  add_tag ${grp_cluster_id} Name "${grp_cluster_id}"
-  add_tag ${grp_cluster_id} Env "${APP_ENV}"
-  add_tag ${grp_cluster_id} Service "${APP_SERVICE}"
+  add_tag ${GRP_CLUSTER_ID} Name "${grp_cluster}"
+  add_tag ${GRP_CLUSTER_ID} Env "${APP_ENV}"
+  add_tag ${GRP_CLUSTER_ID} Service "${APP_SERVICE}"
 
-  echo " - ${grp_cluster_id} / ${grp_cluster}"
+  echo " - ${GRP_CLUSTER_ID} / ${grp_cluster}"
 
   # db
   local grp_db="grp-${APP_NAME}-db"
-  local grp_db_id=$(aws ec2 create-security-group --group-name "${grp_db}" --description "${grp_db} security group" --vpc-id ${VPC_ID} | jq -r ".GroupId")
-  aws ec2 authorize-security-group-ingress --group-id ${grp_db_id} --protocol tcp --port 22 --cidr ${MY_IP}/32
-  aws ec2 authorize-security-group-ingress --group-id ${grp_db_id} --protocol tcp --port 5432 --cidr ${MY_IP}/32
-  aws ec2 authorize-security-group-ingress --group-id ${grp_db_id} --protocol tcp --port 5432 --source-group ${grp_cluster_id}
+  GRP_DB_ID=$(aws ec2 create-security-group --group-name "${grp_db}" --description "${grp_db} security group" --vpc-id ${VPC_ID} | jq -r ".GroupId")
+  aws ec2 authorize-security-group-ingress --group-id ${GRP_DB_ID} --protocol tcp --port 22 --cidr ${MY_IP}/32
+  aws ec2 authorize-security-group-ingress --group-id ${GRP_DB_ID} --protocol tcp --port 5432 --cidr ${MY_IP}/32
+  aws ec2 authorize-security-group-ingress --group-id ${GRP_DB_ID} --protocol tcp --port 5432 --source-group ${GRP_CLUSTER_ID}
 
   # db tags
-  add_tag ${grp_db_id} Name "${grp_db}"
-  add_tag ${grp_db_id} Env "${APP_ENV}"
-  add_tag ${grp_db_id} Service "${APP_SERVICE}"
+  add_tag ${GRP_DB_ID} Name "${grp_db}"
+  add_tag ${GRP_DB_ID} Env "${APP_ENV}"
+  add_tag ${GRP_DB_ID} Service "${APP_SERVICE}"
 
-  echo " - ${grp_db_id} / ${grp_db}"
+  echo " - ${GRP_DB_ID} / ${grp_db}"
 }
 
 # create security groups
@@ -185,7 +184,7 @@ create_routes() {
   
   # route tables
   local route_table_id=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=${VPC_ID}" | jq -r ".RouteTables[].RouteTableId")
-  $(aws ec2 create-route --route-table-id ${route_table_id} --destination-cidr-block 0.0.0.0/0 --gateway-id ${IGW_ID})
+  $(aws ec2 create-route --route-table-id "${route_table_id}" --destination-cidr-block 0.0.0.0/0 --gateway-id "${IGW_ID}") > /dev/null
 
   # TODO: Create public / private route tables for specific subnets
   # aws ec2 associate-route-table --route-table-id ${route_table_id} --subnet-id ${current_subnet}

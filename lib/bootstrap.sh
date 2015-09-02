@@ -21,5 +21,5 @@ echo "My IP:       ${MY_IP}"
 # Make it rain!
 
 source "lib/network.sh"
-source "lib/elb.sh"
+source "lib/loadbalancer.sh"
 # source "lib/members.sh"

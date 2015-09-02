@@ -18,4 +18,5 @@ MY_IP=$(get_ip)
 AWS_REGION=$(aws configure get region)
 
 # availability zones
-NET_ZONES=2
+AWS_ZONE_1="a"
+AWS_ZONE_2="b"
