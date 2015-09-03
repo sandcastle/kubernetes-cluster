@@ -183,8 +183,8 @@ create_routes() {
   echo "[Route Tables]"
   
   # route tables
-  local route_table_id=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=${VPC_ID}" | jq -r ".RouteTables[].RouteTableId")
-  $(aws ec2 create-route --route-table-id "${route_table_id}" --destination-cidr-block 0.0.0.0/0 --gateway-id "${IGW_ID}") > /dev/null
+  local route_table_id=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=${VPC_ID}" | jq -r ".RouteTables[0].RouteTableId")
+  $(aws ec2 create-route --route-table-id "${route_table_id}" --destination-cidr-block "0.0.0.0/0" --gateway-id "${IGW_ID}")
 
   # TODO: Create public / private route tables for specific subnets
   # aws ec2 associate-route-table --route-table-id ${route_table_id} --subnet-id ${current_subnet}
