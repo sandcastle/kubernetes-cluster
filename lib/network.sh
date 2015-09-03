@@ -26,8 +26,8 @@ create_vpc() {
 
   # create vpc
   VPC_ID=$(aws ec2 create-vpc --cidr-block ${VPC_CIDR} | jq -r '.Vpc.VpcId')
-  aws ec2 modify-vpc-attribute --vpc-id ${VPC_ID} --enable-dns-support '{"Value": true}'
-  aws ec2 modify-vpc-attribute --vpc-id ${VPC_ID} --enable-dns-hostnames '{"Value": true}'
+  aws ec2 modify-vpc-attribute --vpc-id ${VPC_ID} --enable-dns-support
+  aws ec2 modify-vpc-attribute --vpc-id ${VPC_ID} --enable-dns-hostnames
 
   # tags
   add_tag ${VPC_ID} Name "vpc-${APP_NAME}"
