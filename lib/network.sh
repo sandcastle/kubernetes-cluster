@@ -19,8 +19,8 @@ create_vpc() {
   VPC_ID=$(aws ec2 describe-vpcs --query "Vpcs[?CidrBlock=='${VPC_CIDR}'].[VpcId][0][0]" --output text)
 
   # check if VPC exists
-  if [ "$vpc_id" == "None" ]; then
-    echo "VPC ($vpc_cidr) already exists"
+  if [[ ! "${VPC_ID}" == "None" ]]; then
+    echo "VPC (${VPC_CIDR}) already exists"
     exit 999
   fi
 
@@ -60,11 +60,12 @@ create_subnet() {
   local subnet_name="subnet-${APP_NAME}-${1}-${3}"
   local subnet=$(aws ec2 create-subnet --vpc-id ${VPC_ID} --cidr-block ${2} --availability-zone "${AWS_REGION}${3}" | jq -r '.Subnet')
   local subnet_id=$(echo ${subnet} | jq -r '.SubnetId')
-  
+
   # tag
   add_tag ${subnet_id} Name "${subnet_name}"
   add_tag ${subnet_id} Env "${APP_ENV}"
   add_tag ${subnet_id} Service "${APP_SERVICE}"
+  add_tag ${subnet_id} Tier "${1}"
 
   # debug 
   echo " - ${subnet_id} / ${subnet_name} (${2})"
@@ -116,6 +117,7 @@ create_groups(){
   add_tag ${GRP_ELB_ID} Name "${grp_elb}"
   add_tag ${GRP_ELB_ID} Env "${APP_ENV}"
   add_tag ${GRP_ELB_ID} Service "${APP_SERVICE}"
+  add_tag ${GRP_ELB_ID} Tier "elb"
 
   echo " - ${GRP_ELB_ID} / ${grp_elb}"
 
@@ -130,6 +132,7 @@ create_groups(){
   add_tag ${GRP_CLUSTER_ID} Name "${grp_cluster}"
   add_tag ${GRP_CLUSTER_ID} Env "${APP_ENV}"
   add_tag ${GRP_CLUSTER_ID} Service "${APP_SERVICE}"
+  add_tag ${GRP_CLUSTER_ID} Tier "cluster"
 
   echo " - ${GRP_CLUSTER_ID} / ${grp_cluster}"
 
@@ -144,6 +147,7 @@ create_groups(){
   add_tag ${GRP_DB_ID} Name "${grp_db}"
   add_tag ${GRP_DB_ID} Env "${APP_ENV}"
   add_tag ${GRP_DB_ID} Service "${APP_SERVICE}"
+  add_tag ${GRP_DB_ID} Tier "cluster"
 
   echo " - ${GRP_DB_ID} / ${grp_db}"
 }
@@ -175,26 +179,56 @@ create_iwg(){
   echo " - ${IGW_ID} / igw-${APP_NAME}"
 }
 
+# Creates the routes for a tier
+# usage: create_tier_routes <iwg_route> <type> <subnet_a> <subnet_b>
+create_tier_routes() {
+
+  local route_table_id=$(aws ec2 create-route-table --vpc-id $VPC_ID | jq -r '.RouteTable.RouteTableId')
+
+  # route internet traffic to subnets
+  if [[ ${1} == "y" ]]
+  then
+    aws ec2 create-route \
+        --route-table-id "${route_table_id}" \
+        --destination-cidr-block "0.0.0.0/0" \
+        --gateway-id "${IGW_ID}" \
+        >> ${LOG}
+  fi
+
+  # associate a subnet
+  aws ec2 associate-route-table \
+      --route-table-id "${route_table_id}" \
+      --subnet-id "${3}" \
+      >> ${LOG}
+
+  # associate b subnet
+  aws ec2 associate-route-table \
+      --route-table-id "${route_table_id}" \
+      --subnet-id "${4}" \
+      >> ${LOG}
+
+  local route_table="rtb-${APP_NAME}-${2}"
+  add_tag ${route_table_id} Name "${route_table}"
+  add_tag ${route_table_id} Env "${APP_ENV}"
+  add_tag ${route_table_id} Service "${APP_SERVICE}"
+  add_tag ${route_table_id} Tier "${2}"
+
+  echo " - ${route_table_id} / ${route_table} (internet:${1})"
+}
+
 # Creates an internet gateway & configures routes
 # usage: create_routes
 create_routes() {
 
   echo ""
   echo "[Route Tables]"
-  
-  # route tables
-  local route_table_id=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=${VPC_ID}" | jq -r ".RouteTables[0].RouteTableId")
-  $(aws ec2 create-route --route-table-id "${route_table_id}" --destination-cidr-block "0.0.0.0/0" --gateway-id "${IGW_ID}")
 
-  # TODO: Create public / private route tables for specific subnets
-  # aws ec2 associate-route-table --route-table-id ${route_table_id} --subnet-id ${current_subnet}
+  # IMPORTANT: in prod we dont want to attach the IGW to the Cluster & DB tiers
+  # change the "y" to "n" to disable this for the appropriate tiers
 
-  # route table tags
-  add_tag ${route_table_id} Name "rtb-${APP_NAME}-main"
-  add_tag ${route_table_id} Env "${APP_ENV}"
-  add_tag ${route_table_id} Service "${APP_SERVICE}"
-
-  echo " - ${route_table_id} / rtb-${APP_NAME}-main"
+  create_tier_routes "y" "elb" "${SUBNET_ELB_A_ID}" "${SUBNET_ELB_B_ID}"
+  create_tier_routes "y" "cluster" "${SUBNET_CLUSTER_A_ID}" "${SUBNET_CLUSTER_B_ID}"
+  create_tier_routes "y" "db" "${SUBNET_DB_A_ID}" "${SUBNET_DB_B_ID}"
 }
 
 # setup internet gateway & routes

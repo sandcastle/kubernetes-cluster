@@ -9,6 +9,10 @@
 source "lib/utils.sh"
 source "lib/vars.sh"
 
+LOG=logs/deploy.log
+
+echo "Bootstrapping Cluster" > ${LOG}
+
 # --------------------------------------
 # Let it be known
 

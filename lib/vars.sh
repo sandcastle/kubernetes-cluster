@@ -7,6 +7,7 @@
 
 # debug
 LOG=
+mkdir -p logs
 
 # networking
 MY_IP=$(get_ip)

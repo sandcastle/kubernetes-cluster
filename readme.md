@@ -39,6 +39,11 @@ Once you have the AWS CLI install, you will need to configure it using the follo
 aws configure
 ```
 
+## Production Ready
+Before moving production load onto the cluster, please consider the following:
+
+- Disable IGW routing to private subnet, see subnets section in `lib/network.sh` to configure
+
 
 ## Further Reading
 Some articles that helped with this project:
